@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+#
+# Copyright (C) Valentin V. Bartenev
+#
+
+NGINX_BIN="$PWD/nginx/build/sbin/nginx"
+LEAVE_TEMP=0
+SHOW_LOG=0
+QUIET=0
+
+function usage {
+	U=`tput smul`
+	nU=`tput rmul`
+	cat<<MSG
+
+ Usage: $0 ${U}TESTS${nU} [${U}path to nginx binary${nU}] [${U}flags${nU}] [${U}prove options${nU}] 
+ 
+ Run ${U}TESTS${nU} for nginx binary; where ${U}TESTS${nU} is a comma separated list of tests (file)names\
+ without '.t' extension.
+ Use "all" to run all existing tests.
+
+ By default, path to nginx binary is "./nginx/build/sbin/nginx".
+
+ Flags:
+  -h : display this help message
+  -e : cat error logs
+  -d : leave temporary test dirs (for debug purposes)
+  -q : don't ask questions (quiet mode)
+
+ For addition prove options see "man prove" or "prove -h".
+
+ Examples:
+  $0 all /usr/sbin/nginx -ed -I nginx-tests/lib
+  $0 buffer,ssi -I nginx-tests/lib
+  
+MSG
+	exit $1
+}
+
+[ "$1" == '-h' ] && usage
+if [ -z $1 ] || [[ "$1" == -* ]]; then
+	echo 'ERROR: You must specify tests to run.'
+	usage 1
+fi
+TESTS=$1; shift
+
+if [ "$1" ] && [[ "$1" != -* ]]; then
+	NGINX_BIN="$1"; shift
+fi
+
+while getopts :hedq opt
+	do case "$opt" in
+		h) usage;;
+		e) SHOW_LOG=1; shift;;
+		d) LEAVE_TEMP=1; shift;;
+		q) QUIET=1; shift;;
+		*) break;;
+	esac
+done;
+
+if [ ! -f "$NGINX_BIN" ]; then
+	echo "ERROR: '$NGINX_BIN' doesn't look like file. Probably wrong path to nginx binary?"
+	exit 1
+fi
+
+echo "Testing '$NGINX_BIN'"
+$NGINX_BIN -V || exit $?
+echo
+
+if (( !$QUIET )); then
+	pids=`pgrep nginx`
+	if (( !$? )); then
+		echo
+		echo "WARNING! Looks like nginx instance is already running.\
+ If it uses 8080 or 8081 port then it will cause a conflict with the test instances."
+
+		echo
+		ps u -p $pids
+		echo
+
+		cmd="kill $pids"
+		echo "Do you wanna '$cmd'? [y/N] ('A' to abort)"
+		while read -sn 1 ans
+			do case "$ans" in
+				y|Y) echo -n 'Killing... '; $cmd || exit $?; echo 'OK'; break;;
+				''|n|N) echo 'No, leave in peace.'; break;;
+				a|A) echo '... exiting.'; exit;;
+			esac
+		done
+	fi
+fi
+
+export TEST_NGINX_BINARY="$NGINX_BIN"
+(( $LEAVE_TEMP )) && export TEST_NGINX_LEAVE=1
+(( $SHOW_LOG )) && export TEST_NGINX_CATLOG=1
+
+script_dir=`dirname $0`
+module_dir=`realpath "$script_dir/.." 2>/dev/null || readlink -f "$script_dir/.."`
+tests_dir="$module_dir/tests"
+
+[[ $@ ]] && echo "Addition prove options: $@"
+
+if [ "$TESTS" == 'all' ]; then
+	echo
+	prove -v $@ "$tests_dir" 
+else
+	IFS=','
+	for t in $TESTS; do
+		echo
+		path="$tests_dir/$t.t"
+		if [ ! -e $path ]; then
+			echo "ERROR: Test '$t' doesn't exist."
+			e=1
+			continue
+		fi
+		prove -v $@ "$path" || e=$?
+	done
+	exit $e
+fi

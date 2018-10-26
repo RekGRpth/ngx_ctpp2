@@ -1,0 +1,29 @@
+
+ == 0.5 :: 19 May 2011 ==
+   Fixed:
+ ! Building by the old GCC in FreeBSD;
+ ! Building by the GCC with RedHat DSO Linking patches;
+ ! The module failed to work with file AIO;
+ ! Subrequest processing (failed to work with the SSI module before);
+ ! Proper 500 status code returning in case of various errors;
+ ! Display of instruction pointers in VM log errors;
+ ! "Accept-Range" header clearing;
+ ! The module could cause problems with chunked transfer encoding;
+ ! The bug that causes the module to fail on x86_32 Linux systems;
+ ! A number of bugs that cause errors up to getting server stuck in a loop in various situations and configurations.
+
+   Improved:
+ * VM initialization at server startup phase (each request caused initialization in earlier versions);
+ * Bufferization code was fully rewritten and "ctpp2_data_buffer" option to define the size of data buffer was added;
+ * Template errors logging.
+
+   Added:
+ + "templates_root" option to set templates root folder;
+ + Ability to set template in config file (due to "template" option);
+ + Template simple checks before execution and, in addition, "templates_check" option to enable СRC32 template checking;
+ + Various VM configuration options;
+ + Tests;
+ + Useful build and test scripts.
+
+ == 0.1 :: 30 September 2010 ==
+ - Initial public beta release.

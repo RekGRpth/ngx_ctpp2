@@ -1,0 +1,35 @@
+
+# Copyright (C) Valentin V. Bartenev
+
+ngx_feature='ctpp2 library'
+ngx_feature_run=no
+ngx_feature_path=
+ngx_feature_libs='-lctpp2'
+. auto/feature
+
+if [ $ngx_found = no ]; then
+	cat << MSG
+ $0: error: ngx_ctpp2 addon was unable to find the ctpp2 library.
+MSG
+	exit 1
+fi
+
+ngx_addon_name=ngx_http_ctpp2_module
+
+if [ $HTTP_ADDITION = YES ]
+	then HTTP_FILTER_MODULES=`echo $HTTP_FILTER_MODULES | sed s/$HTTP_ADDITION_FILTER_MODULE/ngx_http_ctpp2_filter_module\ \&/`
+	else HTTP_FILTER_MODULES="$HTTP_FILTER_MODULES ngx_http_ctpp2_filter_module"
+fi
+HTTP_COPY_FILTER_MODULE="$HTTP_COPY_FILTER_MODULE ngx_http_ctpp2_tmpl_loader"
+
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS
+	$ngx_addon_dir/sources/CTPP2NginxVMEnvironment.cpp
+	$ngx_addon_dir/sources/ctpp2_process.cpp
+	$ngx_addon_dir/sources/ngx_http_ctpp2_filter_module.c
+	$ngx_addon_dir/sources/ngx_http_ctpp2_tmpl_loader.c"
+
+CORE_LIBS="$CORE_LIBS -lstdc++ -lctpp2"
+
+TMPLS_ROOT_PATH=${TMPLS_ROOT_PATH:-templates}
+have=NGX_CTPP2_TMPLS_ROOT_PATH value="\"$TMPLS_ROOT_PATH\"" . auto/define
+echo " ctpp2 templates root: \"$TMPLS_ROOT_PATH\""

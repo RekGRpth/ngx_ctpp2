@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+#
+# Copyright (C) Valentin V. Bartenev
+#
+
+CLEAN=0
+QUIET=0
+DEBUG=0
+JOBS=0
+OPTIONS=''
+NGINX_DIR="$PWD/nginx"
+
+function usage {
+	U=`tput smul`
+	nU=`tput rmul`
+	cat<<MSG
+
+ Usage: $0 [${U}options${nU}] [${U}addition configure parameters${nU}]
+ 
+ Options:
+  -h       : display this help message
+  -c       : force configure and perform clean build
+  -d       : add --with-debug to configure parameters
+  -q       : don't ask questions (quiet mode)
+  -j <num> : use <num> jobs to build (make -j<num>)
+  -n <dir> : set nginx sources directory (by default it will "<your current dir>/nginx")
+  -i <dir> : set install directory (by default it will "<nginx soruces dir>/build")
+
+ Examples:
+  $0 -c
+  $0 -dqj 3 -i devel/test --with-file-aio
+  
+MSG
+	exit $1
+}
+
+declare -i JOBS
+
+if which realpath &>/dev/null
+	then rp_cmd='realpath'
+	else rp_cmd='readlink -f'
+fi
+
+while getopts :hcdqj:n:i: opt
+	do case "$opt" in
+		h) usage;;
+		c) CLEAN=1;;
+		d) DEBUG=1;;
+		q) QUIET=1;;
+		j) JOBS=$OPTARG; (( $JOBS )) || usage 1;;
+		n) NGINX_DIR=`$rp_cmd "$OPTARG"`;;
+		i) INSTALL_DIR=`$rp_cmd "$OPTARG"`;;
+		:) usage 1;;
+		*) break;;
+	esac
+done; shift $((OPTIND-1))
+
+if (( !$JOBS )); then
+	if [ -d /sys/devices/system/cpu ]; then
+		let JOBS=`find /sys/devices/system/cpu -maxdepth 1 -name cpu? | wc -l`+1
+	elif [ -f /proc/cpuinfo ]; then
+		let JOBS=`grep processor /proc/cpuinfo | wc -l`+1
+	elif [ `sysctl -n -e hw.ncpu` ]; then
+		let JOBS=`sysctl -n -e hw.ncpu`+1
+	else
+		JOBS=2
+	fi
+fi
+
+(( $DEBUG )) && OPTIONS="$OPTIONS --with-debug"
+
+script_dir=`dirname "$0"`
+module_dir=`$rp_cmd "$script_dir/.."`
+
+cat<<MSG
+
+ Directories
+  - nginx source: "$NGINX_DIR"
+  - module source: "$module_dir"
+MSG
+
+cd "$NGINX_DIR" || usage 1
+
+if [[ $CLEAN -eq 1 || "$INSTALL_DIR" || "$OPTIONS" || $@ || ! -f Makefile || "$module_dir/config" -nt Makefile ]]
+	then
+		CLEAN=1
+
+		[ -z "$INSTALL_DIR" ] && INSTALL_DIR="$NGINX_DIR/build"
+		echo -e "  - install: \"$INSTALL_DIR\"\n"
+
+		echo -n ' Debug: '; if (( $DEBUG )); then echo 'YES'; else echo 'NO'; fi
+		echo
+		if [[ $@ ]]; then
+			echo ' Other build options:'
+			for opt in "$@"; do echo "  $opt"; done
+			echo
+		fi
+
+		if [ ! -d "$INSTALL_DIR" ]; then
+			if (( !$QUIET )); then 
+				echo "Install directory doesn't exist. Do you want to create it? [y/N]"
+				while read -sn 1 ans
+					do case "$ans" in
+						y|Y) break;;
+						''|n|N) echo '... exiting.'; exit;;
+					esac
+				done
+			fi
+			echo -n 'Making build directory... '
+			mkdir -p "$INSTALL_DIR" || exit $?
+			echo 'DONE'
+		fi
+		echo "Perform clean build using $JOBS thread(s)."
+	else
+		echo -e "\nPerform rebuild on existing configuration using $JOBS thread(s)."
+fi
+
+if (( !$QUIET )); then
+	read -sn 1 -p "Press any key to continue... (or CTRL+C to abort) " key
+	echo '- OK'
+fi
+
+if (( $CLEAN )); then
+	[ -f Makefile ] && make clean
+	./configure --prefix="$INSTALL_DIR" --add-module="$module_dir" "$@" $OPTIONS || exit $?
+fi
+
+make install -j$JOBS && echo -e '\nComplete.'

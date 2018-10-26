@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+
+#
+# Copyright (C) Valentin V. Bartenev
+#
+ 
+function usage {
+	U=`tput smul`
+	nU=`tput rmul`
+	cat<<MSG
+
+ Usage: $0 ${U}test directory${nU} ${U}nginx versions${nU}...
+
+ Example:
+  $0 ../tests 0.7.{67,68} 0.8.{37..54} 1.0.0
+  
+MSG
+	exit $1
+}
+
+function configure {
+	. 'test.conf'
+}
+
+if which 'realpath' &>/dev/null
+	then rp_cmd='realpath'
+	else rp_cmd='readlink -f'
+fi
+
+script_dir=`dirname $0`
+build=`$rp_cmd "$script_dir/build"`
+test=`$rp_cmd "$script_dir/test"`
+
+if (( $# < 2 )); then
+	echo 'ERROR: You must specify both the test directory and at least one version to test.'
+	usage 1;
+fi
+
+TEST_DIR="$1"
+shift
+
+if [ ! -d "$TEST_DIR" ]; then
+	echo "ERROR: Test directory \"$TEST_DIR\" doesn't exist."
+	exit 1;
+fi
+
+echo "Test directory: \"$TEST_DIR\""
+cd "$TEST_DIR"
+
+echo -n 'Config script '
+if [ -f 'test.conf' ]; then
+	echo 'found.'
+	configure 0 0 0
+	if (( $? )); then
+		e=$?
+		echo "ERROR: Problem in config script."
+		exit $e
+	fi
+else
+	echo 'not found.'
+fi
+
+for v in $@; do
+	echo -ne "\n $v "
+	if [[ ! $v =~ ^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$ ]]; then
+		echo "ERROR: dosn't look like nginx version."
+		continue
+	fi
+
+	BUILD_OPTS=''
+	TEST_OPTS=''
+	configure ${v//./ }
+	echo "$BUILD_OPTS"
+
+	mkdir -p $v
+
+	echo -n "  - Source: "
+	src="$v/source.tar.gz"
+	if [ ! -f $src ]; then
+		wget -o "$v/download.log" -O $src "http://nginx.org/download/nginx-$v.tar.gz"
+		if (( $? )); then
+			echo 'fail'
+			rm $src
+			continue
+		else
+			echo 'downloaded'
+		fi
+	else
+		echo 'found'
+	fi
+
+	[ -e "$v/nginx" ] && rm -r "$v/nginx"
+
+	echo -n "  - Unpacking: "
+	mkdir "$v/nginx"
+	tar xzf $src -C "$v/nginx" --strip-components=1 &>"$v/unpack.log"
+	if (( $? ))
+		then echo 'fail'; continue
+		else echo 'done'
+	fi
+
+	echo -n "  - Building: "
+	$build -qn "$v/nginx" $BUILD_OPTS &>"$v/build.log"
+	if (( $? ))
+		then echo 'fail'; continue
+		else echo 'done'
+	fi
+
+	echo -n "  - Testing: "
+	$test all "$v/nginx/build/sbin/nginx" -q $TEST_OPTS &>"$v/test.log"
+	if (( $? ))
+		then echo 'fail'
+		else echo 'pass'
+	fi
+
+	rm -r "$v/nginx"
+done
+echo -e '\nDone.'
