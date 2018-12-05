@@ -36,7 +36,7 @@ class NginxOutputCollector : public OutputCollector {
 		ngx_chain_t  *nginxOutput;
 		size_t        total;
 		
-		INT_32 Collect(const void *vData, UINT_32 iDataLength) throw(ngx_int_t);
+		INT_32 Collect(const void *vData, UINT_32 iDataLength) /*throw(ngx_int_t)*/;
 };
 
 class NginxLogger : public Logger {
@@ -276,7 +276,7 @@ ctpp2_process(
 
 
 INT_32
-NginxOutputCollector::Collect(const void *vData, UINT_32 iDataLength) throw(ngx_int_t)
+NginxOutputCollector::Collect(const void *vData, UINT_32 iDataLength) /*throw(ngx_int_t)*/
 {
 	ngx_buf_t    *buffer;
 	size_t        freeSpace;
