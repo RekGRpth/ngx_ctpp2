@@ -17,7 +17,7 @@ fi
 
 CORE_LIBS="$CORE_LIBS -lstdc++ -lctpp2"
 
-TMPLS_ROOT_PATH=${TMPLS_ROOT_PATH:-templates}
+TMPLS_ROOT_PATH=${TMPLS_ROOT_PATH:-ctpp}
 have=NGX_CTPP2_TMPLS_ROOT_PATH value="\"$TMPLS_ROOT_PATH\"" . auto/define
 echo " ctpp2 templates root: \"$TMPLS_ROOT_PATH\""
 
