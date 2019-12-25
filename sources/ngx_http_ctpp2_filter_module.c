@@ -567,7 +567,7 @@ ngx_http_ctpp2_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 	} else {
 		c_str = &conf->tmpls_root->value;
 		p_str = &prev->tmpls_root->value;
-		if (!ngx_path_separator(c_str->data[0]) && p_str->data != NULL) {
+		if (!ngx_path_separator(c_str->data[0]) && prev->tmpls_root != NULL && p_str->data != NULL) {
 			if (ngx_strprepend_nulled(p_str, c_str, cf->pool) != NGX_OK) {
 				return NGX_CONF_ERROR;
 			}	
@@ -602,6 +602,9 @@ ngx_http_ctpp2_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 		if (!ngx_path_separator(c_str->data[0])) {
 			p_str = &conf->tmpls_root->value;
 			if (ngx_strprepend_nulled(p_str, c_str, cf->pool) != NGX_OK) {
+				return NGX_CONF_ERROR;
+			}
+			if (!ngx_path_separator(c_str->data[0]) && ngx_conf_full_name(cf->cycle, c_str, 0) != NGX_OK) {
 				return NGX_CONF_ERROR;
 			}
 		} else {
